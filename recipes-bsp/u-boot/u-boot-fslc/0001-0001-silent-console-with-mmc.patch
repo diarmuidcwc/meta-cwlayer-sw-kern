@@ -1,0 +1,498 @@
+From de1e3f5b12d3c250e184f9b28a68c4e3636f1749 Mon Sep 17 00:00:00 2001
+From: James Curran <jpcurran@curtisswright.com>
+Date: Thu, 28 Nov 2019 15:00:01 +0000
+Subject: [PATCH]  0001-silent-console-with-mmc
+
+---
+ arch/arm/imx-common/cpu.c                   |   3 +-
+ arch/arm/lib/board.c                        |   1 -
+ board/freescale/mx6sabresd/mx6dlsabresd.cfg |  61 +++++-----
+ board/freescale/mx6sabresd/mx6sabresd.c     | 173 +++++++++++++++++++++++++++-
+ common/board_r.c                            |   3 +-
+ drivers/mmc/mmc.c                           |  17 +++
+ include/configs/mx6sabre_common.h           |  10 +-
+ include/configs/mx6sabresd.h                |   7 +-
+ include/mmc.h                               |   8 ++
+ 9 files changed, 246 insertions(+), 37 deletions(-)
+
+diff --git a/arch/arm/imx-common/cpu.c b/arch/arm/imx-common/cpu.c
+index ed826a0..2d20ac7 100644
+--- a/arch/arm/imx-common/cpu.c
++++ b/arch/arm/imx-common/cpu.c
+@@ -26,7 +26,8 @@ char *get_reset_cause(void)
+ 	struct src *src_regs = (struct src *)SRC_BASE_ADDR;
+ 
+ 	cause = readl(&src_regs->srsr);
+-	writel(cause, &src_regs->srsr);
++	/* delay this until we have read it
++	writel(cause, &src_regs->srsr);  */
+ 
+ 	switch (cause) {
+ 	case 0x00001:
+diff --git a/arch/arm/lib/board.c b/arch/arm/lib/board.c
+index 76adaf3..fa83cff 100644
+--- a/arch/arm/lib/board.c
++++ b/arch/arm/lib/board.c
+@@ -589,7 +589,6 @@ void board_init_r(gd_t *id, ulong dest_addr)
+ #endif
+ 
+ #ifdef CONFIG_GENERIC_MMC
+-	puts("MMC:   ");
+ 	mmc_initialize(gd->bd);
+ #endif
+ 
+diff --git a/board/freescale/mx6sabresd/mx6dlsabresd.cfg b/board/freescale/mx6sabresd/mx6dlsabresd.cfg
+index f35f22e..478cfd2 100644
+--- a/board/freescale/mx6sabresd/mx6dlsabresd.cfg
++++ b/board/freescale/mx6sabresd/mx6dlsabresd.cfg
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (C) 2014 Freescale Semiconductor, Inc.
++ * Copyright (C) 2014-2015 Freescale Semiconductor, Inc.
+  *
+  * SPDX-License-Identifier:	GPL-2.0+
+  *
+@@ -69,19 +69,21 @@ DATA 4	0x020e0480 0x00000030
+ DATA 4	0x020e0484 0x00000030
+ DATA 4	0x020e0488 0x00000030
+ DATA 4	0x020e048c 0x00000030
++
++DATA 4	0x021b001c 0x00008000
+ DATA 4	0x021b0800 0xa1390003
+-DATA 4	0x021b080c 0x001F001F
+-DATA 4	0x021b0810 0x001F001F
+-DATA 4	0x021b480c 0x001F001F
+-DATA 4	0x021b4810 0x001F001F
+-DATA 4	0x021b083c 0x4220021F
+-DATA 4	0x021b0840 0x0207017E
+-DATA 4	0x021b483c 0x4201020C
+-DATA 4	0x021b4840 0x01660172
+-DATA 4	0x021b0848 0x4A4D4E4D
+-DATA 4	0x021b4848 0x4A4F5049
+-DATA 4	0x021b0850 0x3F3C3D31
+-DATA 4	0x021b4850 0x3238372B
++DATA 4	0x021b080c 0x004D004E
++DATA 4	0x021b0810 0x00430047
++DATA 4	0x021b480c 0x00270028
++DATA 4	0x021b4810 0x002A003C
++DATA 4	0x021b083c 0x02440244
++DATA 4	0x021b0840 0x022C0230
++DATA 4	0x021b483c 0x02200228
++DATA 4	0x021b4840 0x02100214
++DATA 4	0x021b0848 0x4648484C
++DATA 4	0x021b4848 0x48484844
++DATA 4	0x021b0850 0x32362E32
++DATA 4	0x021b4850 0x3434342A
+ DATA 4	0x021b081c 0x33333333
+ DATA 4	0x021b0820 0x33333333
+ DATA 4	0x021b0824 0x33333333
+@@ -93,24 +95,29 @@ DATA 4	0x021b4828 0x33333333
+ DATA 4	0x021b08b8 0x00000800
+ DATA 4	0x021b48b8 0x00000800
+ DATA 4	0x021b0004 0x0002002D
+-DATA 4	0x021b0008 0x00333030
+-DATA 4	0x021b000c 0x3F435313
+-DATA 4	0x021b0010 0xB66E8B63
++DATA 4	0x021b0008 0x00333040
++DATA 4	0x021b000c 0x676B52F3
++DATA 4	0x021b0010 0xB66D8B63
+ DATA 4	0x021b0014 0x01FF00DB
+-DATA 4	0x021b0018 0x00001740
++
++DATA 4	0x021b0018 0x00011740
+ DATA 4	0x021b001c 0x00008000
+-DATA 4	0x021b002c 0x000026d2
+-DATA 4	0x021b0030 0x00431023
+-DATA 4	0x021b0040 0x00000027
+-DATA 4	0x021b0000 0x831A0000
+-DATA 4	0x021b001c 0x04008032
++DATA 4	0x021b002c 0x000026D2
++DATA 4	0x021b0030 0x006B1023
++DATA 4	0x021b0040 0x00000047
++DATA 4	0x021b0000 0x841A0000
++
++
++DATA 4	0x021b001c 0x02008032
+ DATA 4	0x021b001c 0x00008033
+ DATA 4	0x021b001c 0x00048031
+-DATA 4	0x021b001c 0x05208030
+-DATA 4 0x021b001c 0x04008040
+-DATA 4	0x021b0020 0x00005800
+-DATA 4	0x021b0818 0x00011117
+-DATA 4	0x021b4818 0x00011117
++DATA 4	0x021b001c 0x15208030
++DATA 4  0x021b001c 0x04008040
++
++
++DATA 4	0x021b0020 0x00007800
++DATA 4	0x021b0818 0x00022227
++DATA 4	0x021b4818 0x00022227
+ DATA 4	0x021b0004 0x0002556D
+ DATA 4	0x021b0404 0x00011006
+ DATA 4	0x021b001c 0x00000000
+diff --git a/board/freescale/mx6sabresd/mx6sabresd.c b/board/freescale/mx6sabresd/mx6sabresd.c
+index 81dcd6e..eb6da45 100644
+--- a/board/freescale/mx6sabresd/mx6sabresd.c
++++ b/board/freescale/mx6sabresd/mx6sabresd.c
+@@ -29,6 +29,9 @@
+ #include <power/pfuze100_pmic.h>
+ DECLARE_GLOBAL_DATA_PTR;
+ 
++static void axon_init(void);
++
++
+ #define UART_PAD_CTRL  (PAD_CTL_PUS_100K_UP |			\
+ 	PAD_CTL_SPEED_MED | PAD_CTL_DSE_40ohm |			\
+ 	PAD_CTL_SRE_FAST  | PAD_CTL_HYS)
+@@ -435,6 +438,7 @@ int board_eth_init(bd_t *bis)
+ 
+ int board_early_init_f(void)
+ {
++	printf("JC: setup_iomux_uart \n");
+ 	setup_iomux_uart();
+ #if defined(CONFIG_VIDEO_IPUV3)
+ 	setup_display();
+@@ -451,6 +455,7 @@ int board_init(void)
+ #ifdef CONFIG_MXC_SPI
+ 	setup_spi();
+ #endif
++	printf("JC: setup i2c\n");
+ 	setup_i2c(1, CONFIG_SYS_I2C_SPEED, 0x7f, &i2c_pad_info1);
+ 
+ 	return 0;
+@@ -531,12 +536,16 @@ static const struct boot_mode board_boot_modes[] = {
+ };
+ #endif
+ 
++
++
+ int board_late_init(void)
+ {
+ #ifdef CONFIG_CMD_BMODE
+ 	add_board_boot_modes(board_boot_modes);
+ #endif
+-	pfuze_init();
++/*	pfuze_init(); */
++
++	axon_init();
+ 
+ 	return 0;
+ }
+@@ -546,3 +555,165 @@ int checkboard(void)
+ 	puts("Board: MX6-SabreSD\n");
+ 	return 0;
+ }
++
++
++
++/* CW Addition - add a watch dog reset limit */
++#define CONFIG_CW_WD_RESET_LIMIT (5)
++#define CW_STR_LEN			(10)
++#define SRC_SRSR_OFFSET	(8)
++#define SRC_SRSR_WD_RES_MASK	(0x10)
++
++static void axon_init(void)
++{
++	char *s;
++	int  resetLimit;
++	int  numWDResets;
++	int image1Setting;
++	int image2Setting;
++	char itoaStr[CW_STR_LEN];
++	int result;
++	u32 cause;
++	struct src *src_regs = (struct src *)SRC_BASE_ADDR;
++	int writeEnv = 0;
++
++	/* ACRA add default configurations for reset limit and number of watchdog resets */
++	s = getenv("IMAGE1");
++	if (s != NULL)
++	{
++		image1Setting = (int)simple_strtol(s, NULL, 10);
++	}
++	else
++	{
++		image1Setting = 0;
++		snprintf(itoaStr, CW_STR_LEN, "%d", image1Setting);
++		setenv("IMAGE1",itoaStr);
++		writeEnv = 1;
++	}
++
++
++	s = getenv("IMAGE2");
++	if (s != NULL)
++	{
++		image2Setting = (int)simple_strtol(s, NULL, 10);
++	}
++	else
++	{
++		image2Setting = 0;
++		snprintf(itoaStr, CW_STR_LEN, "%d", image2Setting);
++		setenv("IMAGE2",itoaStr);
++		writeEnv = 1;
++	}
++
++
++	/* ACRA add default configurations for reset limit and number of watchdog resets */
++	s = getenv("CWNumWDResets");
++	if (s != NULL)
++	{
++		numWDResets = (int)simple_strtol(s, NULL, 10);
++	}
++	else
++	{
++
++		numWDResets = 0;
++		snprintf(itoaStr, CW_STR_LEN, "%d", numWDResets);
++		setenv("CWNumWDResets",itoaStr);
++		writeEnv = 1;
++	}
++
++
++	cause = readl(&src_regs->srsr);
++	/* clear source now */
++	writel(cause, &src_regs->srsr);
++	printf("cause %x\n", cause);
++
++	/* check if the reset is due to a watch dog reset */
++	if ((cause & SRC_SRSR_WD_RES_MASK) == SRC_SRSR_WD_RES_MASK)
++	{
++		/* watchdog reset */
++		printf("Watchdog reset \n");
++		if (numWDResets >= CONFIG_CW_WD_RESET_LIMIT)
++		{
++			int mmcpart = 0;
++			/* image has failed */
++			/* which image - read mmcpart */
++			s = getenv("mmcpart");
++			if (s != NULL)
++			{
++				mmcpart = (int)simple_strtol(s, NULL, 10);
++
++				/* if currently using load 1 and load 2 is available */
++				if ((mmcpart == 3) && (image2Setting == 1))
++				{
++					/* fail load 1 */
++					image1Setting = 2;
++					snprintf(itoaStr, CW_STR_LEN, "%d", image1Setting);
++					setenv("IMAGE1",itoaStr);
++
++					/* switch to load 2 */
++					setenv("mmcpart","6");
++					setenv("mmcroot","/dev/mmcblk3p7 rootwait rw");
++
++				}
++				/* if currently using load 2 and load 1 is available */
++				else if ((mmcpart == 6) && (image1Setting == 1))
++				{
++					/* fail load 2 */
++					image2Setting = 2;
++					snprintf(itoaStr, CW_STR_LEN, "%d", image2Setting);
++					setenv("IMAGE2",itoaStr);
++					/* switch to load 1 */
++					setenv("mmcpart","3");
++					setenv("mmcroot","/dev/mmcblk3p5 rootwait rw");
++
++				}
++
++				/* zero WDOG restarts */
++				numWDResets = 0;
++				snprintf(itoaStr, CW_STR_LEN, "%d", numWDResets);
++				setenv("CWNumWDResets",itoaStr);
++
++				writeEnv = 1;
++			}
++			/* if not readable do nothing */
++
++
++		}
++		else
++		{
++			//numWDResets++;
++			snprintf(itoaStr, CW_STR_LEN, "%d", numWDResets);
++			setenv("CWNumWDResets",itoaStr);
++			writeEnv = 1;
++		}
++
++
++	}
++	else
++	{
++		/* watchdog reset */
++		printf("Not watchdog reset \n");
++		if (numWDResets != 0)
++		{
++			numWDResets = 0;
++			snprintf(itoaStr, CW_STR_LEN, "%d", numWDResets);
++			setenv("CWNumWDResets",itoaStr);
++			writeEnv = 1;
++		}
++
++	}
++
++	if ( writeEnv == 1)
++	{
++		saveenv();
++	}
++
++	printf("Image 1 %i\n", image1Setting);
++	printf("Image 2 %i\n", image2Setting);
++	printf("Num watchdog resets %i\n", numWDResets);
++
++
++}
++
++
++
+diff --git a/common/board_r.c b/common/board_r.c
+index 7e1a76d..fca869a 100644
+--- a/common/board_r.c
++++ b/common/board_r.c
+@@ -91,6 +91,7 @@ static int initr_secondary_cpu(void)
+ 	/* TODO: maybe define this for all archs? */
+ 	cpu_secondary_init_r();
+ 
++
+ 	return 0;
+ }
+ 
+@@ -391,7 +392,6 @@ int initr_onenand(void)
+ #ifdef CONFIG_GENERIC_MMC
+ int initr_mmc(void)
+ {
+-	puts("MMC:   ");
+ 	mmc_initialize(gd->bd);
+ 	return 0;
+ }
+@@ -438,6 +438,7 @@ static int initr_env(void)
+ 
+ 	/* Initialize from environment */
+ 	load_addr = getenv_ulong("loadaddr", 16, load_addr);
++
+ #if defined(CONFIG_SYS_EXTBDINFO)
+ #if defined(CONFIG_405GP) || defined(CONFIG_405EP)
+ #if defined(CONFIG_I2CFAST)
+diff --git a/drivers/mmc/mmc.c b/drivers/mmc/mmc.c
+index 44a4feb..72b5275 100644
+--- a/drivers/mmc/mmc.c
++++ b/drivers/mmc/mmc.c
+@@ -1157,6 +1157,23 @@ static int mmc_startup(struct mmc *mmc)
+ 			else
+ 				mmc->tran_speed = 26000000;
+ 		}
++
++
++		if (( ext_csd[EXT_CSD_WR_REL_PARAM] & EXT_CSD_WR_REL_PARAM_HS_CTRL_REL_ALLOWED) == EXT_CSD_WR_REL_PARAM_HS_CTRL_REL_ALLOWED)
++		{
++		    printf("EXT_CSD_WR_REL_SET value before %x\n", ext_csd[EXT_CSD_WR_REL_SET]);
++			err = mmc_switch(mmc, EXT_CSD_CMD_SET_NORMAL, EXT_CSD_WR_REL_SET, EXT_CSD_WR_REL_SET_PARTS_REL);
++			if (err)
++			{
++			    printf("EXT_CSD_WR_REL_SET  failed\n");
++			    printf("EXT_CSD_WR_REL_SET value after %x\n", ext_csd[EXT_CSD_WR_REL_SET]);
++			}
++			else
++			{
++			    printf("EXT_CSD_WR_REL_SET value after %x\n", ext_csd[EXT_CSD_WR_REL_SET]);
++			}
++
++		}
+ 	}
+ 
+ 	mmc_set_clock(mmc, mmc->tran_speed);
+diff --git a/include/configs/mx6sabre_common.h b/include/configs/mx6sabre_common.h
+index c81e9e9..be96e79 100644
+--- a/include/configs/mx6sabre_common.h
++++ b/include/configs/mx6sabre_common.h
+@@ -92,7 +92,9 @@
+ #define CONFIG_CMD_SETEXPR
+ #undef CONFIG_CMD_IMLS
+ 
+-#define CONFIG_BOOTDELAY               1
++#define CONFIG_BOOTDELAY               0
++#define CONFIG_ZERO_BOOTDELAY_CHECK
++#define CONFIG_SILENT_CONSOLE  1 
+ 
+ #define CONFIG_LOADADDR                        0x12000000
+ #define CONFIG_SYS_TEXT_BASE           0x17800000
+@@ -121,6 +123,7 @@
+ 
+ #define CONFIG_EXTRA_ENV_SETTINGS \
+ 	"script=boot.scr\0" \
++	"silent=1\0" \
+ 	"image=zImage\0" \
+ 	"fdt_file=" CONFIG_DEFAULT_FDT_FILE "\0" \
+ 	"fdt_addr=0x18000000\0" \
+@@ -147,7 +150,7 @@
+ 		"fi\0" \
+ 	EMMC_ENV	  \
+ 	"mmcargs=setenv bootargs console=${console},${baudrate} " \
+-		"root=${mmcroot}\0" \
++		"root=${mmcroot} quiet loglevel=0\0" \
+ 	"loadbootscript=" \
+ 		"fatload mmc ${mmcdev}:${mmcpart} ${loadaddr} ${script};\0" \
+ 	"bootscript=echo Running bootscript from mmc ...; " \
+@@ -260,6 +263,7 @@
+ #define CONFIG_CMD_CACHE
+ #endif
+ 
++#if 0
+ /* Framebuffer */
+ #define CONFIG_VIDEO
+ #define CONFIG_VIDEO_IPUV3
+@@ -276,5 +280,5 @@
+ #define CONFIG_IPUV3_CLK 260000000
+ #define CONFIG_IMX_HDMI
+ #define CONFIG_IMX_VIDEO_SKIP
+-
++#endif
+ #endif                         /* __MX6QSABRE_COMMON_CONFIG_H */
+diff --git a/include/configs/mx6sabresd.h b/include/configs/mx6sabresd.h
+index 21ff2bc..a283e51 100644
+--- a/include/configs/mx6sabresd.h
++++ b/include/configs/mx6sabresd.h
+@@ -21,18 +21,19 @@
+ #elif defined(CONFIG_MX6DL)
+ #define CONFIG_DEFAULT_FDT_FILE	"imx6dl-sabresd-ldo.dtb"
+ #endif
+-#define PHYS_SDRAM_SIZE		(1u * 1024 * 1024 * 1024)
++#define PHYS_SDRAM_SIZE		(2u * 1024 * 1024 * 1024)
+ 
+ #define CONFIG_SUPPORT_EMMC_BOOT /* eMMC specific */
+ 
+ #include "mx6sabre_common.h"
+ 
++
+ #define CONFIG_SYS_FSL_USDHC_NUM	3
+ #if defined(CONFIG_ENV_IS_IN_MMC)
+-#define CONFIG_SYS_MMC_ENV_DEV		1	/* SDHC3 */
++#define CONFIG_SYS_MMC_ENV_DEV		2	/* SDHC3 */
+ #endif
+ 
+-#define CONFIG_CMD_PCI
++/*#define CONFIG_CMD_PCI */
+ #ifdef CONFIG_CMD_PCI
+ #define CONFIG_PCI
+ #define CONFIG_PCI_PNP
+diff --git a/include/mmc.h b/include/mmc.h
+index 7f5f9bc..7dc2bb9 100644
+--- a/include/mmc.h
++++ b/include/mmc.h
+@@ -163,6 +163,14 @@
+ #define EXT_CSD_HC_ERASE_GRP_SIZE	224	/* RO */
+ #define EXT_CSD_BOOT_MULT		226	/* RO */
+ 
++/* put in definitions for reliability offsete in EXT_CSD */
++#define EXT_CSD_WR_REL_PARAM		166	/* Enable reliability mode through this */
++#define EXT_CSD_WR_REL_SET		    167	/* check bit 0 to ensure feature is enabled */
++
++#define EXT_CSD_WR_REL_PARAM_HS_CTRL_REL_ALLOWED    0x1	/* check bit 0 to ensure feature is enabled */
++#define EXT_CSD_WR_REL_SET_PARTS_REL		        0x1F	/* check bit 0 to ensure feature is enabled */
++
++
+ /*
+  * EXT_CSD field definitions
+  */
+-- 
+2.7.4
+

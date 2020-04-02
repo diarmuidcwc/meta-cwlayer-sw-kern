@@ -1,0 +1,37 @@
+diff '--exclude=.git' -urN -x '*.[^ch]' kernel-source/drivers/net/phy/fixed.c unclean/drivers/net/phy/fixed.c
+--- kernel-source/drivers/net/phy/fixed.c	2016-10-03 11:00:54.848793772 +0100
++++ unclean/drivers/net/phy/fixed.c	2016-10-03 10:50:58.384797000 +0100
+@@ -203,11 +203,25 @@
+ }
+ EXPORT_SYMBOL_GPL(fixed_phy_add);
+ 
++static struct fixed_phy_status fixed_phy_status = {
++      .link           = 1,
++       .speed          = 100,
++       .duplex         = 1,
++};
++
++
+ static int __init fixed_mdio_bus_init(void)
+ {
+ 	struct fixed_mdio_bus *fmb = &platform_fmb;
+ 	int ret;
+ 
++    ret = fixed_phy_add(PHY_POLL, 0, &fixed_phy_status);
++     if (ret < 0)
++     {
++         printk("could not add fixed phy.\n");
++         return ret;
++     }
++
+ 	pdev = platform_device_register_simple("Fixed MDIO bus", 0, NULL, 0);
+ 	if (IS_ERR(pdev)) {
+ 		ret = PTR_ERR(pdev);
+@@ -243,6 +257,7 @@
+ }
+ module_init(fixed_mdio_bus_init);
+ 
++
+ static void __exit fixed_mdio_bus_exit(void)
+ {
+ 	struct fixed_mdio_bus *fmb = &platform_fmb;
